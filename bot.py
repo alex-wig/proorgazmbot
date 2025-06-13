@@ -1,18 +1,19 @@
 import os
+from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ContextTypes, filters
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
 )
-from fastapi import FastAPI, Request
-import uvicorn
 
-# === НАСТРОЙКИ ===
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7985540950:AAGs_x79yOybKywqCOfi0Rs4ZjdQukML4NU")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://proorgazmbot-1.onrender.com")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # например: https://your-service.onrender.com
 ADMIN_CHAT_ID = 446370284
 
-# === ДАННЫЕ ===
 services = [
     {"id": "s1", "name": "120 минут"},
     {"id": "s2", "name": "180 минут"},
@@ -33,14 +34,19 @@ masters = [
 
 user_data = {}
 
-app = FastAPI()
+# Создаем FastAPI-приложение
+fastapi_app = FastAPI()
 
-telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
+# Создаем Telegram Application (бота)
+telegram_app = Application.builder().token(BOT_TOKEN).build()
 
 
-# === ОБРАБОТЧИКИ ===
+# === Telegram Handlers ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton(s["name"], callback_data=f"service:{s['id']}")] for s in services]
+    keyboard = [
+        [InlineKeyboardButton(s["name"], callback_data=f"service:{s['id']}")]
+        for s in services
+    ]
     await update.message.reply_text(
         "👋 Добро пожаловать в салон Pro Orgazm!\n\nВыберите продолжительность массажа:",
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -57,7 +63,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service_id = data.split(":")[1]
         service = next((s["name"] for s in services if s["id"] == service_id), "Неизвестно")
         user_data[user_id] = {"service": service}
-        keyboard = [[InlineKeyboardButton(m["name"], callback_data=f"master:{m['id']}")] for m in masters]
+        keyboard = [
+            [InlineKeyboardButton(m["name"], callback_data=f"master:{m['id']}")]
+            for m in masters
+        ]
         await query.edit_message_text(
             f"Вы выбрали: {service}\nВыберите мастера:",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -78,7 +87,12 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         phone = update.message.text
         info = user_data[user_id]
         name = update.message.from_user.full_name
-        text = f"📩 Новый лид от {name}:\n\n🕒 Услуга: {info['service']}\n💆 Мастер: {info['master']}\n📱 Телефон: {phone}"
+        text = (
+            f"📩 Новый лид от {name}:\n\n"
+            f"🕒 Услуга: {info['service']}\n"
+            f"💆 Мастер: {info['master']}\n"
+            f"📱 Телефон: {phone}"
+        )
         await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=text)
 
         await update.message.reply_text("✅ Спасибо! Мы скоро свяжемся с вами. Также можете написать нам в мессенджер:")
@@ -92,23 +106,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Пожалуйста, начните с /start")
 
 
-# === Вебхуки и запуск ===
+# === Добавление хендлеров ===
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CallbackQueryHandler(button_handler))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
 
-@app.on_event("startup")
-async def setup_webhook():
+# === Webhook эндпоинт ===
+@fastapi_app.on_event("startup")
+async def on_startup():
     await telegram_app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
 
 
-@app.post("/webhook")
-async def process_update(request: Request):
-    update = Update.de_json(data=await request.json(), bot=telegram_app.bot)
+@fastapi_app.post("/webhook")
+async def webhook(req: Request):
+    data = await req.json()
+    update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"ok": True}
 
 
-if __name__ == "__main__":
-    uvicorn.run("bot:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+# === Запуск через uvicorn (Render делает это автоматически) ===
+# uvicorn bot:fastapi_app --host 0.0.0.0 --port $PORT

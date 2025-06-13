@@ -10,10 +10,16 @@ from telegram.ext import (
     filters,
 )
 
+# Получение токенов и URL из переменных окружения
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # например: https://your-service.onrender.com
-ADMIN_CHAT_ID = 446370284
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "446370284"))  # можно переопределить в Render
 
+# Проверка наличия токена
+if not BOT_TOKEN or not WEBHOOK_URL:
+    raise ValueError("Необходимо задать BOT_TOKEN и WEBHOOK_URL в переменных окружения")
+
+# Списки услуг и мастеров
 services = [
     {"id": "s1", "name": "120 минут"},
     {"id": "s2", "name": "180 минут"},
@@ -34,14 +40,13 @@ masters = [
 
 user_data = {}
 
-# Создаем FastAPI-приложение
+# FastAPI-приложение
 fastapi_app = FastAPI()
 
-# Создаем Telegram Application (бота)
+# Telegram Application (бот)
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 
-
-# === Telegram Handlers ===
+# === Хендлеры ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(s["name"], callback_data=f"service:{s['id']}")]
@@ -51,7 +56,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Добро пожаловать в салон Pro Orgazm!\n\nВыберите продолжительность массажа:",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -80,7 +84,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Отлично! Мастер: {master}.\n\n📞 Пожалуйста, отправьте свой номер телефона:"
         )
 
-
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if user_id in user_data:
@@ -105,26 +108,20 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Пожалуйста, начните с /start")
 
-
-# === Добавление хендлеров ===
+# === Регистрация хендлеров ===
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CallbackQueryHandler(button_handler))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
-
-# === Webhook эндпоинт ===
+# === Настройка Webhook при запуске ===
 @fastapi_app.on_event("startup")
 async def on_startup():
     await telegram_app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
 
-
+# === Обработка входящих обновлений от Telegram ===
 @fastapi_app.post("/webhook")
 async def webhook(req: Request):
     data = await req.json()
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"ok": True}
-
-
-# === Запуск через uvicorn (Render делает это автоматически) ===
-# uvicorn bot:fastapi_app --host 0.0.0.0 --port $PORT

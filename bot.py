@@ -10,8 +10,8 @@ from telegram.ext import (
     filters,
 )
 
-BOT_TOKEN = os.environ.get("7985540950:AAGs_x79yOybKywqCOfi0Rs4ZjdQukML4NU")
-WEBHOOK_URL = os.environ.get("https://proorgazmbot-1.onrender.com")  # например: https://your-service.onrender.com
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # например: https://your-service.onrender.com
 ADMIN_CHAT_ID = 446370284
 
 services = [

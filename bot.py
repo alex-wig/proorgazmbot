@@ -9,7 +9,7 @@ import uvicorn
 
 # === НАСТРОЙКИ ===
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "7985540950:AAGs_x79yOybKywqCOfi0Rs4ZjdQukML4NU")
-WEBHOOK_URL = os.environ.get("https://proorgazmbot.onrender.com", "https://your-service.onrender.com")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://proorgazmbot-1.onrender.com")
 ADMIN_CHAT_ID = 446370284
 
 # === ДАННЫЕ ===
